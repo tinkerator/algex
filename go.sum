@@ -1,0 +1,6 @@
+golang.org/x/sys v0.9.0 h1:KS/R3tvhPqvJvwcKfnBHJwwthS11LRhmM5D59eEXa0s=
+golang.org/x/sys v0.9.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/term v0.9.0 h1:GRRCnKYhdQrD8kfRAdQ6Zcw1P0OcELxGLKJvtjVMZ28=
+golang.org/x/term v0.9.0/go.mod h1:M6DEAAIenWoTxdKrOltXcmDY3rSplQUkrvaDU5FcQyo=
+zappem.net/pub/io/lined v0.5.1 h1:Wf+ZpHrnXfEh8omMAXCRdFbID6flteegUAXXYLGekhA=
+zappem.net/pub/io/lined v0.5.1/go.mod h1:mYaNtmfQ/ezm48GOZ+R6buHVvBy4Z6LBwFFkLSz3RXA=
