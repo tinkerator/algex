@@ -4,8 +4,11 @@
 package main
 
 import (
+	"bufio"
+	"flag"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"regexp"
 	"sort"
@@ -20,6 +23,8 @@ var (
 	tok    = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9_]*|[0-9]+|\:\=|[-+*/^=(),%]|\s*|#.*)`)
 	space  = regexp.MustCompile(`^\s+$`)
 	symbol = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+
+	filer = flag.String("file", "", "name of algex (.ax) script to start with")
 )
 
 // split tokenizes the input.
@@ -55,7 +60,7 @@ outer:
 	for ; j < len(toks); j++ {
 		for i, t := range toks[j:] {
 			if t == "," {
-				e, err2 := exp(toks[j:i])
+				e, err2 := exp(toks[j : j+i])
 				if err2 != nil {
 					es = nil
 					err = err2
@@ -80,18 +85,57 @@ outer:
 
 func main() {
 	fmt.Printf("Algex (c) 2023 tinkerer@zappem.net\n\n")
+
+	flag.Parse()
+
 	vars := make(map[string]*terms.Exp)
 
 	t := lined.NewReader()
-	for {
-		fmt.Print("> ")
-		line, err := t.ReadString()
+	var f *os.File
+	var fs []*os.File
+	var reading *bufio.Scanner
+	var files []*bufio.Scanner
+
+	if *filer != "" {
+		f, err := os.Open(*filer)
 		if err != nil {
-			switch err {
-			default:
-				log.Fatalf("unable to recover: %v", err)
+			fmt.Printf("unable to open %q: %v\n", *filer, err)
+			os.Exit(1)
+		}
+		fs = append(fs, f)
+		reading = bufio.NewScanner(f)
+		files = append(files, reading)
+	}
+
+	for {
+		var line string
+		var err error
+
+		if reading != nil {
+			if !reading.Scan() {
+				f.Close()
+				fs = fs[:len(fs)-1]
+				files = files[:len(files)-1]
+				if len(files) == 0 {
+					reading = nil
+					f = nil
+				} else {
+					reading = files[len(files)-1]
+					f = fs[len(fs)-1]
+				}
+				continue
 			}
-			continue
+			line = reading.Text()
+		} else {
+			fmt.Print("> ")
+			line, err = t.ReadString()
+			if err != nil {
+				switch err {
+				default:
+					log.Fatalf("unable to recover: %v", err)
+				}
+				continue
+			}
 		}
 
 		toks := split(line)
@@ -120,41 +164,109 @@ func main() {
 					continue
 				}
 			}
+		} else if toks[0] == "file" {
+			path := strings.TrimSpace(line[5 : len(line)-1])
+			f, err = os.Open(path)
+			if err != nil {
+				fmt.Printf("unable to open %q: %v\n", path, err)
+				continue
+			}
+			reading = bufio.NewScanner(f)
+			fs = append(fs, f)
+			files = append(files, reading)
+			continue
 		} else {
 			switch toks[1] {
-			case ":=":
+			case ":=", "=":
 				if !symbol.MatchString(toks[0]) {
 					fmt.Printf("invalid assignment to %q\n", toks[0])
 					continue
 				}
-				var es []*terms.Exp
-				if len(toks) > 4 && toks[2] == "subst" && toks[4] == "," {
-					if e, ok := vars[toks[3]]; !ok {
-						fmt.Printf("variable %q not defined\n", toks[3])
+				if len(toks) < 3 {
+					delete(vars, toks[0])
+					continue
+				}
+
+				if toks[2] != "subst" {
+					es, err := build(toks[2:])
+					if err != nil {
+						fmt.Printf("assignment failed: %v\n", err)
 						continue
-					} else {
-						es = []*terms.Exp{
-							vars[toks[5]].Substitute([]factor.Value{factor.S(toks[3])}, e),
+					}
+					if len(es) != 1 {
+						fmt.Printf("unable to assign multiple expressions to %q\n", toks[0])
+						continue
+					}
+					vars[toks[0]] = es[0]
+					continue
+				}
+
+				es, err := build(toks[3:])
+				if err != nil {
+					fmt.Printf("assignment failed: %v\n", err)
+					continue
+				}
+
+				var a, b, c *terms.Exp
+
+				if len(es) > 2 {
+					b = es[1]
+					c = es[2]
+				} else if len(es) > 1 {
+					b = es[1]
+					t := es[1].String()
+					if vars[t] == nil {
+						fmt.Printf("unable to find a substitute for %q\n", b)
+						continue
+					}
+					c = vars[t]
+				}
+
+				if t := es[0].String(); vars[t] != nil {
+					a = vars[t]
+				} else {
+					a = es[0]
+				}
+				n := a
+
+				if b != nil {
+					// replace b in a with c.
+
+					ts := b.Terms()
+					var tx string
+					for t := range ts {
+						if tx < t {
+							tx = t
 						}
 					}
-				} else {
-					// (un)define a value.
-					// TODO verify that es does not contain toks[0].
-					es, err = build(toks[2:])
-					if err != nil {
-						fmt.Printf("assignment to %q failed: %v\n", toks[0], err)
+					if tx == "" {
+						fmt.Printf("no usable terms in %q\n", b)
 						continue
 					}
+
+					te := ts[tx].Fact
+					tf := ts[tx].Coeff
+					inv := &big.Rat{}
+					tfr := terms.NewExp([]factor.Value{factor.R(inv.Inv(tf))})
+					tex := terms.NewExp(te)
+					bex := terms.Mul(b, tfr).Sub(tex)
+					res := terms.Mul(c, tfr).Add(bex)
+
+					n = a.Substitute(te, res)
 				}
-				switch len(es) {
-				case 0:
-					delete(vars, toks[0])
-				case 1:
-					vars[toks[0]] = es[0]
-				default:
-					fmt.Printf("assignment limited to single RHS value: %v\n", es)
+
+				if toks[1] == "=" {
+					// substitute as hard as we can.
+					for i := 0; i < 3; i++ {
+						for s, v := range vars {
+							n = n.Substitute([]factor.Value{factor.S(s)}, v)
+						}
+					}
 				}
+
+				vars[toks[0]] = n
 				continue
+
 			case "mod":
 				s := toks[0]
 				f, ok := vars[s]

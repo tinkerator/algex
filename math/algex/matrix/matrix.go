@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"zappem.net/math/algex/factor"
-	"zappem.net/math/algex/terms"
+	"zappem.net/pub/math/algex/factor"
+	"zappem.net/pub/math/algex/terms"
 )
 
 type Matrix struct {

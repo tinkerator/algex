@@ -1,4 +1,4 @@
-module zappem.net
+module zappem.net/pub
 
 go 1.20
 

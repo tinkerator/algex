@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"zappem.net/math/algex/factor"
+	"zappem.net/pub/math/algex/factor"
 )
 
 // Term is a product of a coefficient and a set of non-numerical factors.
@@ -63,6 +63,11 @@ func (e *Exp) String() string {
 		}
 	}
 	return strings.Join(s, "")
+}
+
+// Int generates an expression of a constant integer.
+func Int(n *big.Int) *Exp {
+	return NewExp([]factor.Value{factor.I(n)})
 }
 
 // insert merges a coefficient, a product of factors to an expression
@@ -183,6 +188,11 @@ func Mul(as ...*Exp) *Exp {
 	return e
 }
 
+// Mul computes the product of this expression with some others.
+func (e *Exp) Mul(es ...*Exp) *Exp {
+	return Mul(append([]*Exp{e}, es...)...)
+}
+
 // Substitute replaces each occurrence of b in an expression with the
 // expression c.
 func (e *Exp) Substitute(b []factor.Value, c *Exp) *Exp {
@@ -243,7 +253,7 @@ func (e *Exp) AsNumber() (*big.Rat, bool) {
 	if !ok {
 		for _, t := range e.terms {
 			if len(t.Fact) == 0 {
-				return t.Coeff, len(e.terms) != 1
+				return t.Coeff, len(e.terms) == 1
 			}
 		}
 	}

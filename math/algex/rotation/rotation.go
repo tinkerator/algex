@@ -5,9 +5,9 @@
 package rotation
 
 import (
-	"zappem.net/math/algex/factor"
-	"zappem.net/math/algex/matrix"
-	"zappem.net/math/algex/terms"
+	"zappem.net/pub/math/algex/factor"
+	"zappem.net/pub/math/algex/matrix"
+	"zappem.net/pub/math/algex/terms"
 )
 
 var one = terms.NewExp([]factor.Value{factor.D(1, 1)})
