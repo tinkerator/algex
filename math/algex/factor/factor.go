@@ -261,37 +261,61 @@ func Inv(a []Value) []Value {
 }
 
 const allLetters = "abcdefghijklmnopqrstuvwxyz"
+const allLETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const allDigits = "0123456789"
 
 var ErrDone = errors.New("term parsing done")
 var ErrSyntax = errors.New("syntax problem")
 
+// skipSpace count the number of prefix spaces.
+func skipSpace(s string) int {
+	for i := 0; i < len(s); i++ {
+		if !strings.Contains(" \t\n\r", s[i:i+1]) {
+			return i
+		}
+	}
+	return 0
+}
+
 // subParse parses the next token of interest or returns ErrDone.
+// Leading spaces are ignored.
 func subParse(s string) (string, int, error) {
-	if strings.Contains("+-"+allDigits, s[0:1]) {
-		for i := 1; i < len(s); i++ {
+	base := skipSpace(s)
+	if base == len(s) {
+		return "", 0, ErrDone
+	}
+	if strings.Contains("^*/", s[base:base+1]) {
+		return s[base : base+1], base + 1, nil
+	}
+	sign := ""
+	if c := s[base : base+1]; strings.Contains("+-", c) {
+		sign = c
+		base += 1 + skipSpace(s[base+1:])
+	}
+	if strings.Contains(allDigits, s[base:base+1]) {
+		for i := 1 + base; i < len(s); i++ {
 			if !strings.Contains(allDigits, s[i:i+1]) {
-				return s[:i], i, nil
+				return sign + s[base:i], i, nil
 			}
 		}
-		return s, len(s), nil
+		return sign + s[base:], len(s), nil
 	}
-	if strings.Contains("^*/", s[0:1]) {
-		return s[:1], 1, nil
+	if sign != "" {
+		return sign, base, nil
 	}
-	for i := 0; i < len(s); i++ {
+	for i := base; i < len(s); i++ {
 		if strings.Contains(allLetters, strings.ToLower(s[i:i+1])) {
 			continue
 		}
-		if i > 0 && strings.Contains(allDigits, s[i:i+1]) {
+		if i > base && strings.Contains(allDigits, s[i:i+1]) {
 			continue
 		}
-		if i == 0 {
+		if i == base {
 			return "", 0, ErrDone
 		}
-		return s[:i], i, nil
+		return s[base:i], i, nil
 	}
-	return s, len(s), nil
+	return s[base:], len(s), nil
 }
 
 const (
@@ -311,21 +335,8 @@ func Parse(s string) ([]Value, int, error) {
 	modifier := parseNone
 	var vs []Value
 	var i int
-	skipSpace := func() bool {
-		var skipped bool
-		for {
-			if !strings.Contains(" \t\n\r", s[i:i+1]) {
-				return skipped
-			}
-			skipped = true
-			i++
-		}
-	}
 	var negate bool
 	for i < len(s) {
-		if skipSpace() {
-			continue
-		}
 		tok, d, err := subParse(s[i:])
 		if err != nil {
 			return Simplify(vs...), i, err
