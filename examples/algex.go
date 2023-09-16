@@ -14,9 +14,9 @@ import (
 	"sort"
 	"strings"
 
-	"zappem.net/math/algex/factor"
-	"zappem.net/math/algex/terms"
 	"zappem.net/pub/io/lined"
+	"zappem.net/pub/math/algex/factor"
+	"zappem.net/pub/math/algex/terms"
 )
 
 var (
