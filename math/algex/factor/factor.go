@@ -264,7 +264,7 @@ const allLetters = "abcdefghijklmnopqrstuvwxyz"
 const allLETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const allDigits = "0123456789"
 
-var ErrDone = errors.New("term parsing done")
+var ErrDone = errors.New("factor parsing done")
 var ErrSyntax = errors.New("syntax problem")
 
 // skipSpace count the number of prefix spaces.
@@ -278,8 +278,10 @@ func skipSpace(s string) int {
 }
 
 // subParse parses the next token of interest or returns ErrDone.
-// Leading spaces are ignored.
-func subParse(s string) (string, int, error) {
+// Leading spaces are ignored. When a leading plus or minus sign is
+// considered part of the factors, the signOK value is true. Otherwise
+// a plus or minus sign will cause subParse to return ErrDone.
+func subParse(signOK bool, s string) (string, int, error) {
 	base := skipSpace(s)
 	if base == len(s) {
 		return "", 0, ErrDone
@@ -289,6 +291,9 @@ func subParse(s string) (string, int, error) {
 	}
 	sign := ""
 	if c := s[base : base+1]; strings.Contains("+-", c) {
+		if !signOK {
+			return "", base, ErrDone
+		}
 		sign = c
 		base += 1 + skipSpace(s[base+1:])
 	}
@@ -323,7 +328,6 @@ const (
 	parseMul
 	parsePow
 	parseDiv
-	parseNeg
 )
 
 // Parse parses a simple list of string arguments into an
@@ -333,14 +337,16 @@ const (
 //	+33*x^4*y^-3*z/x/3 -> 11*x^3*y^-3*z
 func Parse(s string) ([]Value, int, error) {
 	modifier := parseNone
+	signOK := true
 	var vs []Value
 	var i int
 	var negate bool
 	for i < len(s) {
-		tok, d, err := subParse(s[i:])
+		tok, d, err := subParse(signOK, s[i:])
 		if err != nil {
 			return Simplify(vs...), i, err
 		}
+		signOK = false
 		if strings.Contains(allLetters, strings.ToLower(tok[:1])) {
 			switch modifier {
 			case parsePow:
@@ -423,6 +429,7 @@ func Parse(s string) ([]Value, int, error) {
 			default:
 				return Simplify(vs...), i, ErrDone
 			}
+			signOK = true
 		}
 		i += d
 	}
