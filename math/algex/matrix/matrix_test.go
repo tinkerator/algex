@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"zappem.net/math/algex/factor"
-	"zappem.net/math/algex/terms"
+	"zappem.net/pub/math/algex/factor"
+	"zappem.net/pub/math/algex/terms"
 )
 
 func TestNewMatrix(t *testing.T) {

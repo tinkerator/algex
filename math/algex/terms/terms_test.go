@@ -3,7 +3,7 @@ package terms
 import (
 	"testing"
 
-	. "zappem.net/math/algex/factor"
+	. "zappem.net/pub/math/algex/factor"
 )
 
 func TestNewExp(t *testing.T) {
@@ -175,6 +175,7 @@ func TestParseExp(t *testing.T) {
 		{"-d1*d1*d0*d1", "-d0*d1^3"},
 		{"a+a*b+b*a-a", "2*a*b"},
 		{"a+a*b+b*a+a-c/2+2/d", "2*a+2*a*b-1/2*c+2*d^-1"},
+		{"a-b+a", "2*a-b"},
 	}
 	for i, v := range vs {
 		e, err := ParseExp(v.from)

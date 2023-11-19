@@ -13,10 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	"zappem.net/math/algex/factor"
-	"zappem.net/math/algex/matrix"
-	"zappem.net/math/algex/rotation"
-	"zappem.net/math/algex/terms"
+	"zappem.net/pub/math/algex/factor"
+	"zappem.net/pub/math/algex/matrix"
+	"zappem.net/pub/math/algex/rotation"
+	"zappem.net/pub/math/algex/terms"
 )
 
 var (
