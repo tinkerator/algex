@@ -337,27 +337,38 @@ const (
 //	-33*y*x  -> -33*x*y
 //	+33*x^4*y^-3*z/x/3 -> 11*x^3*y^-3*z
 func Parse(s string) ([]Value, int, error) {
-	modifier := parseNone
+	modifier := parseMul
 	signOK := true
 	var vs []Value
 	var i int
 	for i < len(s) {
 		tok, d, err := subParse(signOK, s[i:])
+		// fmt.Printf("[%s] %v %d %q %d: %v\n", s[i:], signOK, modifier, tok, d, err)
 		if err != nil {
 			return Simplify(vs...), i, err
 		}
-		signOK = false
 		if strings.Contains(allLetters, strings.ToLower(tok[:1])) {
 			switch modifier {
-			case parsePow:
+			case parsePow, parseNone:
 				return nil, 0, ErrSyntax
-			case parseNone, parseMul:
+			case parseMul:
 				vs = append(vs, S(tok))
 			case parseDiv:
 				vs = append(vs, Sp(tok, -1))
 			}
 			modifier = parseNone
+			signOK = false
 		} else if strings.Contains("+-"+allDigits, tok[:1]) {
+			if tok == "+" || tok == "-" {
+				if !signOK {
+					return Simplify(vs...), i, ErrDone
+				}
+				if tok == "-" {
+					vs = append([]Value{D(-1, 1)}, vs...)
+				}
+				i += d
+				continue
+			}
 			switch modifier {
 			case parsePow:
 				n, err := strconv.Atoi(tok)
@@ -378,34 +389,15 @@ func Parse(s string) ([]Value, int, error) {
 				den := new(big.Rat).SetInt(new(big.Int).Exp(z.Denom(), en, nil))
 				q := new(big.Rat)
 				if neg {
-					q.Quo(one, num)
+					q.Inv(num)
 					q.Mul(q, den)
 				} else {
-					q.Quo(one, den)
+					q.Inv(den)
 					q.Mul(q, num)
 				}
 				vs[len(vs)-1].num = q
 			case parseNone:
-				if tok == "+" {
-					if len(vs) > 0 {
-						return Simplify(vs...), i, ErrDone
-					}
-					break
-				}
-				if tok == "-" {
-					if len(vs) > 0 {
-						return Simplify(vs...), i, ErrDone
-					}
-					vs = append(vs, D(-1, 1))
-					break
-				}
-				num, ok := new(big.Rat).SetString(tok)
-				if !ok {
-					return nil, 0, ErrSyntax
-				}
-				vs = append(vs, Value{
-					num: num,
-				})
+				return nil, 0, ErrSyntax
 			case parseMul:
 				num, ok := new(big.Rat).SetString(tok)
 				if !ok {
@@ -424,10 +416,12 @@ func Parse(s string) ([]Value, int, error) {
 				})
 			}
 			modifier = parseNone
+			signOK = false
 		} else {
 			if modifier != parseNone {
 				return nil, 0, ErrSyntax
 			}
+			signOK = true
 			switch tok[0] {
 			case '^':
 				modifier = parsePow
@@ -438,7 +432,6 @@ func Parse(s string) ([]Value, int, error) {
 			default:
 				return Simplify(vs...), i, ErrDone
 			}
-			signOK = true
 		}
 		i += d
 	}
