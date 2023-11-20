@@ -59,13 +59,13 @@ var minusOne = big.NewRat(-1, 1)
 
 // R copies a rational value into a number value.
 func R(n *big.Rat) Value {
-	c := &big.Rat{}
+	c := new(big.Rat)
 	return Value{num: c.Set(n)}
 }
 
 // I copies an integer value into a number value.
 func I(n *big.Int) Value {
-	c := &big.Rat{}
+	c := new(big.Rat)
 	return Value{num: c.SetInt(n)}
 }
 
@@ -303,6 +303,7 @@ func subParse(signOK bool, s string) (string, int, error) {
 				return sign + s[base:i], i, nil
 			}
 		}
+		// Everything is the signed number.
 		return sign + s[base:], len(s), nil
 	}
 	if sign != "" {
@@ -340,7 +341,6 @@ func Parse(s string) ([]Value, int, error) {
 	signOK := true
 	var vs []Value
 	var i int
-	var negate bool
 	for i < len(s) {
 		tok, d, err := subParse(signOK, s[i:])
 		if err != nil {
@@ -356,10 +356,6 @@ func Parse(s string) ([]Value, int, error) {
 			case parseDiv:
 				vs = append(vs, Sp(tok, -1))
 			}
-			if negate {
-				vs = append(vs, D(-1, 1))
-				negate = false
-			}
 			modifier = parseNone
 		} else if strings.Contains("+-"+allDigits, tok[:1]) {
 			switch modifier {
@@ -368,10 +364,27 @@ func Parse(s string) ([]Value, int, error) {
 				if err != nil {
 					return nil, 0, ErrSyntax
 				}
-				if vs[len(vs)-1].num != nil {
-					return nil, 0, ErrSyntax
+				z := vs[len(vs)-1].num
+				if z == nil {
+					vs[len(vs)-1].pow *= n
+					break
 				}
-				vs[len(vs)-1].pow *= n
+				neg := n < 0
+				if neg {
+					n = -n
+				}
+				en := big.NewInt(int64(n))
+				num := new(big.Rat).SetInt(new(big.Int).Exp(z.Num(), en, nil))
+				den := new(big.Rat).SetInt(new(big.Int).Exp(z.Denom(), en, nil))
+				q := new(big.Rat)
+				if neg {
+					q.Quo(one, num)
+					q.Mul(q, den)
+				} else {
+					q.Quo(one, den)
+					q.Mul(q, num)
+				}
+				vs[len(vs)-1].num = q
 			case parseNone:
 				if tok == "+" {
 					if len(vs) > 0 {
@@ -383,22 +396,18 @@ func Parse(s string) ([]Value, int, error) {
 					if len(vs) > 0 {
 						return Simplify(vs...), i, ErrDone
 					}
-					negate = !negate
+					vs = append(vs, D(-1, 1))
 					break
 				}
-				num, ok := (&big.Rat{}).SetString(tok)
+				num, ok := new(big.Rat).SetString(tok)
 				if !ok {
 					return nil, 0, ErrSyntax
 				}
 				vs = append(vs, Value{
 					num: num,
 				})
-				if negate {
-					vs = append(vs, D(-1, 1))
-					negate = false
-				}
 			case parseMul:
-				num, ok := (&big.Rat{}).SetString(tok)
+				num, ok := new(big.Rat).SetString(tok)
 				if !ok {
 					return nil, 0, ErrSyntax
 				}
@@ -406,7 +415,7 @@ func Parse(s string) ([]Value, int, error) {
 					num: num,
 				})
 			case parseDiv:
-				num, ok := (&big.Rat{}).SetString("1/" + tok)
+				num, ok := new(big.Rat).SetString("1/" + tok)
 				if !ok {
 					return nil, 0, ErrSyntax
 				}

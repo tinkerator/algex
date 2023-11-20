@@ -158,6 +158,15 @@ func main() {
 					fmt.Printf(" %s := %v\n", k, vars[k])
 				}
 				continue
+			case "help":
+				fmt.Println(`commands:
+
+<exp>		display expression (simplified)
+file <name>	take commands from a named file
+xxx := <exp>	learn a simple substitution for simplification
+xxx = <exp>	learn a simplified substitution for simplification
+list		list all of the known substitutions`)
+				continue
 			default:
 				if strings.HasPrefix(toks[0], "#") {
 					// ignore comment

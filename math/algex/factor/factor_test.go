@@ -129,15 +129,17 @@ func TestReplace(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	vs := []struct {
-		before, after string
+		before, after, trimmed string
 	}{
-		{"1", "1"},
-		{"0", "0"},
-		{"1*1", "1"},
-		{"a", "a"},
-		{"-a/ 2", "-1/2*a"},
-		{"a1 ^3* 6 * a1 ^ -2", "6*a1"},
-		{"a1^3*6*a1^- 2", "6*a1"},
+		{"1", "1", "1"},
+		{"0", "0", "0"},
+		{"1*1", "1", "1"},
+		{"-a", "-1*a", "-a"},
+		{"- x^2", "-1*x^2", "-x^2"},
+		{"a", "a", "a"},
+		{"-a/ 2", "-1/2*a", "-1/2*a"},
+		{"a1 ^3* 6 * a1 ^ -2", "6*a1", "6*a1"},
+		{"a1^3*6*a1^- 2", "6*a1", "6*a1"},
 	}
 	for i, v := range vs {
 		x, j, err := Parse(v.before)
@@ -154,12 +156,17 @@ func TestParse(t *testing.T) {
 				xs = append(xs, s.String())
 			}
 		}
+		// First verify all the constituent factors.
 		text := "0"
 		if len(xs) != 0 {
 			text = strings.Join(xs, "*")
 		}
 		if text != v.after {
 			t.Errorf("[%d] test %q -> %v got=%q (want %q)", i, v.before, x, text, v.after)
+		}
+		// Next verify the condensed representation (+1 & -1 collapsed).
+		if text = Prod(x...); text != v.trimmed {
+			t.Errorf("[%d] test %q -> %v got=%q (want %q)", i, v.before, x, text, v.trimmed)
 		}
 	}
 }
