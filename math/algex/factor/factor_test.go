@@ -174,3 +174,71 @@ func TestParse(t *testing.T) {
 		}
 	}
 }
+
+func TestGCF(t *testing.T) {
+	vs := []struct {
+		a, b []Value
+		s    string
+	}{
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			b: []Value{Sp("a", 1), Sp("b", 2)},
+			s: "a*b^2",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			b: []Value{Sp("a", 4), Sp("b", 1)},
+			s: "a^3*b",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			b: []Value{Sp("a", 4), Sp("b", 3)},
+			s: "a^3*b^2",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2), Sp("c", 2)},
+			b: []Value{Sp("a", 4), Sp("c", 3)},
+			s: "a^3*c^2",
+		},
+	}
+	for i, v := range vs {
+		g := GCF(v.a, v.b)
+		if s := Prod(g...); s != v.s {
+			t.Errorf("[%d] got=%q want=%q", i, s, v.s)
+		}
+	}
+}
+
+func TestLCP(t *testing.T) {
+	vs := []struct {
+		a, b []Value
+		s    string
+	}{
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			b: []Value{Sp("a", 1), Sp("b", 2)},
+			s: "a^3*b^2",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			b: []Value{Sp("a", 4), Sp("b", 1)},
+			s: "a^4*b^2",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			b: []Value{Sp("a", 4), Sp("b", 3)},
+			s: "a^4*b^3",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2), Sp("c", 2)},
+			b: []Value{Sp("a", 4), Sp("c", 3)},
+			s: "a^4*b^2*c^3",
+		},
+	}
+	for i, v := range vs {
+		g := LCP(v.a, v.b)
+		if s := Prod(g...); s != v.s {
+			t.Errorf("[%d] got=%q want=%q", i, s, v.s)
+		}
+	}
+}

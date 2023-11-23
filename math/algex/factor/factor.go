@@ -245,7 +245,7 @@ func GCF(a, b []Value) []Value {
 }
 
 // Inv generates the inverse of a set of symbolic factors. It ignores
-// terms Values with no symbol.
+// Values with no symbol.
 func Inv(a []Value) []Value {
 	var r []Value
 	for _, x := range a {
@@ -258,6 +258,12 @@ func Inv(a []Value) []Value {
 		})
 	}
 	return r
+}
+
+// LCP returns the least common product of a set of symbolic terms.
+func LCP(a, b []Value) []Value {
+	g := Inv(GCF(a, b))
+	return Simplify(append(append(g, a...), b...)...)
 }
 
 const allLetters = "abcdefghijklmnopqrstuvwxyz"
