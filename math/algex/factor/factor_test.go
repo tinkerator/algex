@@ -242,3 +242,33 @@ func TestLCP(t *testing.T) {
 		}
 	}
 }
+
+func TestDen(t *testing.T) {
+	vs := []struct {
+		a, b []Value
+		s    string
+	}{
+		{
+			a: []Value{Sp("a", 3), Sp("b", 2)},
+			s: "0",
+		},
+		{
+			a: []Value{Sp("a", -3), Sp("b", 2)},
+			s: "a^3",
+		},
+		{
+			a: []Value{Sp("a", -3), Sp("b", -2)},
+			s: "a^3*b^2",
+		},
+		{
+			a: []Value{Sp("a", 3), Sp("b", -2), Sp("c", -2)},
+			s: "b^2*c^2",
+		},
+	}
+	for i, v := range vs {
+		g := Den(v.a)
+		if s := Prod(g...); s != v.s {
+			t.Errorf("[%d] got=%q want=%q", i, s, v.s)
+		}
+	}
+}

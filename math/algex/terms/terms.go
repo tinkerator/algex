@@ -2,6 +2,7 @@
 package terms
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -269,8 +270,8 @@ func (e *Exp) Terms() map[string]Term {
 	return e.terms
 }
 
-// Common returns the factors common to all terms in the supplied
-// expressions as.
+// Common returns the non-numerical factors common to all terms in the
+// supplied expressions as.
 func Common(as ...*Exp) Term {
 	var f []factor.Value
 done:
@@ -288,30 +289,173 @@ done:
 			}
 		}
 	}
+	// TODO investigate factoring out any common factors.
 	return Term{
 		Coeff: big.NewRat(1, 1),
 		Fact:  f,
 	}
 }
 
+// Frac is used to hold a numerator and a denominator expression.
+type Frac struct {
+	Num, Den *Exp
+}
+
+// String displays a text representation of a ratio.
+func (r *Frac) String() string {
+	if r == nil || r.Num == nil {
+		return "0"
+	}
+	ns := r.Num.String()
+	ds := r.Den.String()
+	if ds == "1" {
+		return ns
+	} else {
+		return fmt.Sprintf("(%s)/(%s)", ns, ds)
+	}
+}
+
+// NewFrac initializes a ratio value to "0/1".
+func NewFrac() *Frac {
+	return &Frac{
+		Den: NewExp([]factor.Value{factor.D(1, 1)}),
+	}
+}
+
+// Ratio breaks an expression into a numerator and a denominator
+// returned in the form of a Frac.
+//
+// This function works by searching through each term in e and
+// extracts a list of reciprocal (power) terms. It then computes the
+// LCF of these terms. This is the denominator. The Numerator is e*d.
+func Ratio(e *Exp) (f *Frac) {
+	f = NewFrac()
+
+	var den []factor.Value
+	for _, ts := range e.terms {
+		d := factor.Den(ts.Fact)
+		den = factor.LCP(den, d)
+	}
+
+	if len(den) != 0 {
+		f.Den = NewExp(den)
+	}
+
+	f.Num = e.Mul(f.Den)
+	return
+}
+
+// ParseFrac converts a string into a parsed Frac expression pair.
+func ParseFrac(text string) (*Frac, error) {
+	// This function uses "_" prefixed values for temporaries,
+	// so ban them from being in the supplied string.
+	if strings.Contains(text, "_") {
+		return nil, errors.New("invalid character, \"_\"")
+	}
+	return parseFracInt(text)
+}
+
+// Reduce removes factors common to the numerator and denominator.
+// TODO explore more sophisticated factorization.
+func (f *Frac) Reduce() {
+	t := Common(f.Num, f.Den)
+	if t.Fact == nil {
+		return // nothing to remove
+	}
+	inv := NewExp(factor.Inv(t.Fact))
+	f.Num = Mul(f.Num, inv)
+	f.Den = Mul(f.Den, inv)
+}
+
+// parseFracInt implements Frac text parsing on a string that contains
+// no externally defined "_" symbols.
+func parseFracInt(text string) (r *Frac, err error) {
+	depth := 0
+	base := -1
+	// This loop breaks the text string into X ( Y ) Z pieces,
+	// replacing text with something that involves a substitution
+	// for X. X does not contain any parentheses. Y and Z may. Y
+	// and Z are parsed by recursion.
+	subs := make(map[string]*Frac)
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		if c == '(' {
+			if depth == 0 && base == -1 {
+				base = i
+			}
+			depth++
+		} else if c == ')' {
+			depth--
+			if depth == 0 {
+				sub := fmt.Sprintf("_XXX%d", len(subs))
+				r2, err2 := ParseFrac(text[base+1 : i])
+				if err2 != nil {
+					err = err2
+					return
+				}
+				subs[sub] = r2
+				// Replace with sub and explore rest.
+				text = fmt.Sprintf("%s %s %s", text[:base], sub, text[i+1:])
+				i = base + len(sub) - 1
+				base = -1
+				continue
+			}
+		}
+		if depth == -1 {
+			return nil, fmt.Errorf("parsing error too many ')' in %q", text)
+		}
+	}
+	if depth != 0 {
+		return nil, fmt.Errorf("parsing error too many '(' in %q", text)
+	}
+
+	e, err2 := ParseExp(text)
+	if err2 != nil {
+		return nil, err
+	}
+	// Replace each substitution with a numerator and denominator
+	// fraction.
+	for sub := range subs {
+		n, d := sub+"n", sub+"d"
+		e = e.Substitute([]factor.Value{factor.S(sub)}, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)})).Substitute([]factor.Value{factor.Sp(sub, -1)}, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
+	}
+	r = Ratio(e)
+	// Given we have completely separated the positive and
+	// negative powers of the ratio components we can now expand
+	// the numerator and denominator with simple substitution.
+	for sub, val := range subs {
+		n, d := fmt.Sprint(sub, "n"), fmt.Sprint(sub, "d")
+		r.Num = r.Num.Substitute([]factor.Value{factor.S(n)}, val.Num)
+		r.Num = r.Num.Substitute([]factor.Value{factor.S(d)}, val.Den)
+		r.Den = r.Den.Substitute([]factor.Value{factor.S(n)}, val.Num)
+		r.Den = r.Den.Substitute([]factor.Value{factor.S(d)}, val.Den)
+	}
+	r.Reduce()
+	return
+}
+
 // ParseExp parses an expression in the form of a string. Only simple
 // expressions are parsed: nothing involving parentheses.
 func ParseExp(s string) (*Exp, error) {
+	s = strings.TrimRight(s, " \t")
+	if len(s) == 0 {
+		return nil, factor.ErrSyntax
+	}
 	e := NewExp()
 	for i := 0; i < len(s); {
 		vs, d, err := factor.Parse(s[i:])
-		i += d
 		switch err {
 		case factor.ErrSyntax:
-			return nil, err
+			return nil, fmt.Errorf("%q, %v", s[i:], err)
 		case factor.ErrDone:
 			if i != len(s) && len(vs) == 0 {
-				return nil, fmt.Errorf("%q: %v", s[i:], factor.ErrSyntax)
+				return nil, fmt.Errorf("%q, %v", s[i:], factor.ErrSyntax)
 			}
 		case nil:
 		default:
-			return nil, fmt.Errorf("unexpected error: %v", err)
+			return nil, fmt.Errorf("unexpected error, %q: %v", s[i:], err)
 		}
+		i += d
 		e = e.Add(NewExp(vs))
 		if i != len(s) && s[i] == '+' {
 			i++

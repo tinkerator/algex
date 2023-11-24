@@ -260,14 +260,29 @@ func Inv(a []Value) []Value {
 	return r
 }
 
+// Den picks all of the negative power symbols from a list of values
+// and inverts them.
+func Den(vs []Value) []Value {
+	var r []Value
+	for _, x := range vs {
+		if x.pow >= 0 {
+			continue
+		}
+		r = append(r, Value{
+			pow: -x.pow,
+			sym: x.sym,
+		})
+	}
+	return r
+}
+
 // LCP returns the least common product of a set of symbolic terms.
 func LCP(a, b []Value) []Value {
 	g := Inv(GCF(a, b))
 	return Simplify(append(append(g, a...), b...)...)
 }
 
-const allLetters = "abcdefghijklmnopqrstuvwxyz"
-const allLETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const allLetters = "abcdefghijklmnopqrstuvwxyz_"
 const allDigits = "0123456789"
 
 var ErrDone = errors.New("factor parsing done")
