@@ -215,3 +215,27 @@ func TestFrac(t *testing.T) {
 		}
 	}
 }
+
+func TestFrac(t *testing.T) {
+	ex := []struct{ a, b string }{
+		{a: "x ", b: " x"},
+		{a: "x+y", b: "y +c+ x -c"},
+		{a: "a^2- b*b", b: "- (a+b)*(b-a)"},
+		{a: "a/(a+b) + b/(a-b)", b: "(a^2+b^2)/(a^2-b^2)"},
+		{a: "al/be", b: "1/(al/be)^-1"},
+		{a: "alpha *beta", b: "-beta^2 /-(alpha/beta)^-1"},
+	}
+	for i, e := range ex {
+		a, err := ParseFrac(e.a)
+		if err != nil {
+			t.Errorf("failed for %d:a=%q, a=(%v): %v", i, e.a, a, err)
+		}
+		b, err := ParseFrac(e.b)
+		if err != nil {
+			t.Errorf("failed for %d:b=%q, b=(%v): %v", i, e.b, b, err)
+		}
+		if as, bs := a.String(), b.String(); as != bs {
+			t.Errorf("failed to equate %d:a=%q,b=%q -> %q != %q", i, e.a, e.b, a, b)
+		}
+	}
+}

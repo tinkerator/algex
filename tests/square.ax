@@ -1,0 +1,8 @@
+# comments are OK
+x := a+b
+y = x+c
+w := x-c
+x*y
+z=(x^2-y^2)/((y-w)^2+a)
+list
+exit

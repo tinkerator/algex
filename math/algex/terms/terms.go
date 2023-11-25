@@ -345,6 +345,28 @@ func Ratio(e *Exp) (f *Frac) {
 	return
 }
 
+// Substitute substitutes replaces each occurrence of b in a Frac
+// numerator and denominator with the expression c.
+func (f *Frac) Substitute(b []factor.Value, c *Frac) *Frac {
+	inv := factor.Inv(b)
+	n, d := "_n", "_d"
+	num := f.Num.Substitute(b, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)})).Substitute(inv, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
+	den := f.Den.Substitute(b, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)})).Substitute(inv, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
+	r1 := Ratio(num)
+	r2 := Ratio(den)
+	r := &Frac{
+		Num: r1.Num.Mul(r2.Den),
+		Den: r1.Den.Mul(r2.Num),
+	}
+	r.Reduce()
+	r.Num = r.Num.Substitute([]factor.Value{factor.S(n)}, c.Num)
+	r.Num = r.Num.Substitute([]factor.Value{factor.S(d)}, c.Den)
+	r.Den = r.Den.Substitute([]factor.Value{factor.S(n)}, c.Num)
+	r.Den = r.Den.Substitute([]factor.Value{factor.S(d)}, c.Den)
+	r.Reduce()
+	return r
+}
+
 // ParseFrac converts a string into a parsed Frac expression pair.
 func ParseFrac(text string) (*Frac, error) {
 	// This function uses "_" prefixed values for temporaries,

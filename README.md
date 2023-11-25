@@ -16,17 +16,16 @@ example the
 [zappem.net/pub/math/algex/terms](https://pkg.go.dev/zappem.net/pub/math/algex/terms)
 package.
 
-The basic commandline example is built as follows:
+The basic command line example is built as follows:
 ```
 $ go build examples/algex.go
 $ ./algex
-Algex (c) 2023 tinkerer@zappem.net
-
 > x:=a+b
 > y:=a-b
 > x*y
  a^2-b^2
-> 
+> exit
+exiting
 ```
 
 ## Other included examples
@@ -37,6 +36,36 @@ robot](https://github.com/tinkerator/saxis):
 ```
 $ go run examples/ik.go
 ... a lot of formulas (investigated and solved by hand) ...
+```
+
+## Features planned
+
+Fractional expressions don't handle numerator/denominator numerical
+values very well. Example:
+```
+$ ./algex
+> y:=a+b
+> x:=a-b
+> list
+ x := a-b
+ y := a+b
+> a:=2
+> b:=4
+> x/y
+ (-2)/(6)
+> exit
+exiting
+```
+
+Rational polynomial factorization isn't yet implemented. Currently, we
+only cancel common non-numerical factors of the denominator and the
+numerator. Example:
+```
+$ ./algex
+> (x+y)*(x-y)/(x+y)
+ (x^2-y^2)/(x+y)
+> exit
+exiting
 ```
 
 ## License info
