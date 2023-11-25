@@ -1,4 +1,4 @@
-module zappem.net/pub
+module zappem.net/pub/math/algex
 
 go 1.20
 
