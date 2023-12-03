@@ -11,10 +11,9 @@ its capabilities.
 
 ## How to use
 
-The documentation for each of the packages can be found on go.dev, for
-example the
-[zappem.net/pub/math/algex/terms](https://pkg.go.dev/zappem.net/pub/math/algex/terms)
-package.
+The documentation for each of the packages can be found on
+[go.dev](https://go.dev) via this top-level search:
+[zappem.net/pub/math/algex](https://pkg.go.dev/zappem.net/pub/math/algex).
 
 The basic command line example is built as follows:
 ```
@@ -40,30 +39,13 @@ $ go run examples/ik.go
 
 ## Features planned
 
-Fractional expressions don't handle numerator/denominator numerical
-values very well. Example:
-```
-$ ./algex
-> y:=a+b
-> x:=a-b
-> list
- x := a-b
- y := a+b
-> a:=2
-> b:=4
-> x/y
- (-2)/(6)
-> exit
-exiting
-```
-
 Rational polynomial factorization isn't yet implemented. Currently, we
-only cancel common non-numerical factors of the denominator and the
+only cancel common factors of the denominator and the
 numerator. Example:
 ```
 $ ./algex
-> (x+y)*(x-y)/(x+y)
- (x^2-y^2)/(x+y)
+> (x+y)*(x-y)/(x+y)^2
+ (x^2-y^2)/(2*x*y+x^2+y^2)
 > exit
 exiting
 ```

@@ -1,6 +1,7 @@
 package terms
 
 import (
+	"math/big"
 	"testing"
 
 	f "zappem.net/pub/math/algex/factor"
@@ -216,26 +217,21 @@ func TestFrac(t *testing.T) {
 	}
 }
 
-func TestFrac(t *testing.T) {
-	ex := []struct{ a, b string }{
-		{a: "x ", b: " x"},
-		{a: "x+y", b: "y +c+ x -c"},
-		{a: "a^2- b*b", b: "- (a+b)*(b-a)"},
-		{a: "a/(a+b) + b/(a-b)", b: "(a^2+b^2)/(a^2-b^2)"},
-		{a: "al/be", b: "1/(al/be)^-1"},
-		{a: "alpha *beta", b: "-beta^2 /-(alpha/beta)^-1"},
+func TestGgcdLcm(t *testing.T) {
+	vs := []struct{ a, b, g, l int64 }{
+		{1, 2, 1, 2},
+		{2, 4, 2, 4},
 	}
-	for i, e := range ex {
-		a, err := ParseFrac(e.a)
-		if err != nil {
-			t.Errorf("failed for %d:a=%q, a=(%v): %v", i, e.a, a, err)
+	for i, v := range vs {
+		a := big.NewInt(v.a)
+		b := big.NewInt(v.b)
+		g := gcd(a, b)
+		l := lcm(a, b)
+		if want := big.NewInt(v.g); g.Cmp(want) != 0 {
+			t.Errorf("[%d] gcd(%v,%v): got=%v want=%v\n", i, a, b, g, want)
 		}
-		b, err := ParseFrac(e.b)
-		if err != nil {
-			t.Errorf("failed for %d:b=%q, b=(%v): %v", i, e.b, b, err)
-		}
-		if as, bs := a.String(), b.String(); as != bs {
-			t.Errorf("failed to equate %d:a=%q,b=%q -> %q != %q", i, e.a, e.b, a, b)
+		if want := big.NewInt(v.l); l.Cmp(want) != 0 {
+			t.Errorf("[%d] lcm(%v,%v): got=%v want=%v\n", i, a, b, l, want)
 		}
 	}
 }

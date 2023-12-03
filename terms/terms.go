@@ -274,13 +274,19 @@ func (e *Exp) Terms() map[string]Term {
 // supplied expressions as.
 func Common(as ...*Exp) Term {
 	var f []factor.Value
+	first := true
 done:
 	for _, a := range as {
+		if len(a.terms) == 0 {
+			f = nil
+			break done
+		}
 		for _, t := range a.terms {
-			if f == nil {
+			if first && f == nil {
 				for _, x := range t.Fact {
 					f = append(f, x)
 				}
+				first = false
 				continue
 			}
 			f = factor.GCF(f, t.Fact)
@@ -310,9 +316,14 @@ func (r *Frac) String() string {
 	ds := r.Den.String()
 	if ds == "1" {
 		return ns
-	} else {
-		return fmt.Sprintf("(%s)/(%s)", ns, ds)
 	}
+	if _, ok := r.Den.terms["0"]; len(r.Den.terms) != 1 || !ok {
+		ds = fmt.Sprint("(", ds, ")")
+	}
+	if len(r.Num.terms) == 1 {
+		return fmt.Sprintf("%s/%s", ns, ds)
+	}
+	return fmt.Sprintf("(%s)/%s", ns, ds)
 }
 
 // NewFrac initializes a ratio value to "0/1".
@@ -377,9 +388,64 @@ func ParseFrac(text string) (*Frac, error) {
 	return parseFracInt(text)
 }
 
+// gcd returns the greatest common divisor of a and b.
+func gcd(a, b *big.Int) *big.Int {
+	g := big.NewInt(1).GCD(nil, nil, a, b)
+	return g.Abs(g)
+}
+
+// lcm returns the least common multiple of a and b.
+func lcm(a, b *big.Int) *big.Int {
+	g := gcd(a, b)
+	l := big.NewInt(1).Mul(a, b)
+	l = l.Abs(l)
+	l = l.Quo(l, g)
+	return l
+}
+
+// CommonN explores a list of expressions and determines what big.Rat
+// can be factored out of all terms. The denominator of this big.Rat
+// ensures that the rest of the expression have "1" for denominators,
+// and the numerator is common to all of the terms.
+func CommonN(exs ...*Exp) *big.Rat {
+	once := false
+	n := big.NewInt(1)
+	d := big.NewInt(1)
+	for _, ex := range exs {
+		if ex == nil {
+			continue
+		}
+		for _, t := range ex.terms {
+			if t.Coeff == nil {
+				continue
+			}
+			d = lcm(d, t.Coeff.Denom())
+			if once {
+				n = gcd(n, t.Coeff.Num())
+				continue
+			}
+			n = n.Set(t.Coeff.Num())
+			once = true
+		}
+	}
+	return big.NewRat(1, 1).SetFrac(n, d)
+}
+
 // Reduce removes factors common to the numerator and denominator.
 // TODO explore more sophisticated factorization.
 func (f *Frac) Reduce() {
+	// Reduce the numerical coefficients.
+	n := CommonN(f.Num)
+	invN := big.NewRat(1, 1).Inv(n)
+	d := CommonN(f.Den)
+	invD := big.NewRat(1, 1).Inv(d)
+	r := big.NewRat(1, 1).Mul(n, invD)
+	pN := NewExp([]factor.Value{factor.I(r.Num()), factor.R(invN)})
+	pD := NewExp([]factor.Value{factor.I(r.Denom()), factor.R(invD)})
+	f.Num = Mul(f.Num, pN)
+	f.Den = Mul(f.Den, pD)
+
+	// Reduce simple common factors.
 	t := Common(f.Num, f.Den)
 	if t.Fact == nil {
 		return // nothing to remove
