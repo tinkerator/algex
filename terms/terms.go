@@ -378,12 +378,14 @@ func (f *Frac) Substitute(b []factor.Value, c *Frac) *Frac {
 	return r
 }
 
+var ErrBadFirstChar = errors.New("invalid first character, \"_\"")
+
 // ParseFrac converts a string into a parsed Frac expression pair.
 func ParseFrac(text string) (*Frac, error) {
 	// This function uses "_" prefixed values for temporaries,
 	// so ban them from being in the supplied string.
-	if strings.Contains(text, "_") {
-		return nil, errors.New("invalid character, \"_\"")
+	if strings.HasPrefix(text, "_") {
+		return nil, ErrBadFirstChar
 	}
 	return parseFracInt(text)
 }
@@ -431,6 +433,40 @@ func CommonN(exs ...*Exp) *big.Rat {
 	return big.NewRat(1, 1).SetFrac(n, d)
 }
 
+// Divide performs long division of one expression with another. It
+// returns the quotient: div, and any remainder: rem.
+func (ex *Exp) Divide(a *Exp) (div, rem *Exp, err error) {
+	// Find the greatest power symbol term of `a`.
+	var leading string
+	n := 0
+	for s, t := range a.terms {
+		m := factor.Order(t.Fact)
+		if n > m {
+			continue
+		}
+		if n == m && s > leading {
+			continue
+		}
+		leading = s
+		n = m
+	}
+	if n == 0 {
+		return nil, nil, factor.ErrDone
+	}
+	// Express this leading term as _factor-"the rest" of `a`.
+	repl := []factor.Value{factor.S("_factor")}
+	lead := a.terms[leading]
+	inv := big.NewRat(1, 1).Inv(lead.Coeff)
+	leader := NewExp(append([]factor.Value{factor.R(lead.Coeff)}, lead.Fact...))
+	rest := NewExp(repl).Add(leader).Sub(a).Mul(NewExp([]factor.Value{factor.R(inv)}))
+	simple := ex.Substitute(lead.Fact, rest)
+	if common := Common(simple, NewExp(repl)); len(common.Fact) != 1 {
+		return nil, nil, factor.ErrDone
+	}
+	div = simple.Mul(NewExp(factor.Inv(repl))).Substitute(repl, a)
+	return div, nil, nil
+}
+
 // Reduce removes factors common to the numerator and denominator.
 // TODO explore more sophisticated factorization.
 func (f *Frac) Reduce() {
@@ -447,12 +483,19 @@ func (f *Frac) Reduce() {
 
 	// Reduce simple common factors.
 	t := Common(f.Num, f.Den)
-	if t.Fact == nil {
-		return // nothing to remove
+	if t.Fact != nil {
+		inv := NewExp(factor.Inv(t.Fact))
+		f.Num = Mul(f.Num, inv)
+		f.Den = Mul(f.Den, inv)
 	}
-	inv := NewExp(factor.Inv(t.Fact))
-	f.Num = Mul(f.Num, inv)
-	f.Den = Mul(f.Den, inv)
+
+	// Best effort at simplifying the polynomials.
+	a, b, err := f.Num.Divide(f.Den)
+	if err != nil || b != nil {
+		return
+	}
+	f.Num = a
+	f.Den = NewExp([]factor.Value{factor.D(1, 1)})
 }
 
 // parseFracInt implements Frac text parsing on a string that contains

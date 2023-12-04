@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Tests for the algex tool.
+go test zappem.net/pub/math/algex/{factor,matrix,rotation,terms}
 
+# Tests for the algex tool.
 go build examples/algex.go
 TMPDIR=$(mktemp -d)
 for t in tests/*.ax ; do

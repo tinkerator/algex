@@ -175,6 +175,15 @@ func Segment(vs ...Value) (*big.Rat, []Value, string) {
 	return x[0].num, x[1:], Prod(x[1:]...)
 }
 
+// Order returns the power complexity of the Value slice, a.
+func Order(a []Value) int {
+	n := 0
+	for _, v := range a {
+		n += v.pow
+	}
+	return n
+}
+
 // Replace replaces copies of b found in a with c. The number of times b
 // appeared in a is returned as well as the replaced array of factors.
 func Replace(a, b, c []Value, max int) (int, []Value) {

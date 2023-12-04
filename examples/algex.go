@@ -24,7 +24,6 @@ var (
 	symbol = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 
 	filer = flag.String("file", "", "name of algex (.ax) script to start with")
-	help  = flag.Bool("help", false, "display help information")
 )
 
 // split tokenizes the input.

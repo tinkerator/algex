@@ -1,5 +1,6 @@
  2*a*b+a*c+a^2+b*c+b^2
  g := -1/(3*al)
+ h := a+b
  w := -c+x
  x := a+b
  y := a+b+c

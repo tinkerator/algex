@@ -1,4 +1,4 @@
-# Algex - a collection of Go packages for basic algebra
+# Algex - a collection of Go packages for performing basic symbolic algebra
 
 ## Overview
 
@@ -39,16 +39,21 @@ $ go run examples/ik.go
 
 ## Features planned
 
-Rational polynomial factorization isn't yet implemented. Currently, we
-only cancel common factors of the denominator and the
-numerator. Example:
+- Rational polynomial factorization isn't yet implemented. Currently, we
+only cancel common simple numerical factors of the denominator and the
+numerator, and whole pieces of the denominator. Example:
 ```
 $ ./algex
+> (x+y)*(x-y)/(x+y)
+ x-y
+> 2*(x+y)*(x-y)/(x^2-y^2)
+ 2
 > (x+y)*(x-y)/(x+y)^2
  (x^2-y^2)/(2*x*y+x^2+y^2)
 > exit
 exiting
 ```
+- A LaTeX mode for rendering an expression.
 
 ## License info
 
