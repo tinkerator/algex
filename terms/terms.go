@@ -197,6 +197,9 @@ func (e *Exp) Mul(es ...*Exp) *Exp {
 // Substitute replaces each occurrence of b in an expression with the
 // expression c.
 func (e *Exp) Substitute(b []factor.Value, c *Exp) *Exp {
+	if len(b) == 0 {
+		return e
+	}
 	s := [][]factor.Value{}
 	for _, t := range c.terms {
 		s = append(s, append([]factor.Value{factor.R(t.Coeff)}, t.Fact...))
@@ -244,6 +247,31 @@ func (e *Exp) Contains(b []factor.Value) bool {
 		}
 	}
 	return false
+}
+
+// Partition splits an expression into two parts: those with a factor
+// of b; and those without.
+func (e *Exp) Partition(b []factor.Value) (div, rem *Exp) {
+	if e == nil {
+		return
+	}
+	d := NewExp()
+	r := NewExp()
+	for _, x := range e.terms {
+		a := append([]factor.Value{factor.R(x.Coeff)}, x.Fact...)
+		if hit, _ := factor.Replace(a, b, zero, 1); hit != 0 {
+			d = d.Add(NewExp(a))
+		} else {
+			r = r.Add(NewExp(a))
+		}
+	}
+	if len(d.terms) != 0 {
+		div = d
+	}
+	if len(r.terms) != 0 {
+		rem = r
+	}
+	return
 }
 
 // AsNumber ignores all terms that contain symbols, and just returns
@@ -327,9 +355,21 @@ func (r *Frac) String() string {
 }
 
 // NewFrac initializes a ratio value to "0/1".
-func NewFrac() *Frac {
-	return &Frac{
-		Den: NewExp([]factor.Value{factor.D(1, 1)}),
+func NewFrac(e ...*Exp) *Frac {
+	switch len(e) {
+	case 0:
+		return &Frac{
+			Den: NewExp([]factor.Value{factor.D(1, 1)}),
+		}
+	case 1:
+		return Ratio(e[0])
+	default:
+		r := &Frac{
+			Num: Sum(e[:len(e)-1]...),
+			Den: e[len(e)-1],
+		}
+		r.Reduce()
+		return r
 	}
 }
 
@@ -460,11 +500,15 @@ func (ex *Exp) Divide(a *Exp) (div, rem *Exp, err error) {
 	leader := NewExp(append([]factor.Value{factor.R(lead.Coeff)}, lead.Fact...))
 	rest := NewExp(repl).Add(leader).Sub(a).Mul(NewExp([]factor.Value{factor.R(inv)}))
 	simple := ex.Substitute(lead.Fact, rest)
-	if common := Common(simple, NewExp(repl)); len(common.Fact) != 1 {
+	x, y := simple.Partition(repl)
+	if x == nil {
 		return nil, nil, factor.ErrDone
 	}
-	div = simple.Mul(NewExp(factor.Inv(repl))).Substitute(repl, a)
-	return div, nil, nil
+	if common := Common(x, NewExp(repl)); len(common.Fact) != 1 {
+		return nil, nil, factor.ErrDone
+	}
+	div = x.Mul(NewExp(factor.Inv(repl))).Substitute(repl, a)
+	return div, y, nil
 }
 
 // Reduce removes factors common to the numerator and denominator.
@@ -542,7 +586,7 @@ func parseFracInt(text string) (r *Frac, err error) {
 
 	e, err2 := ParseExp(text)
 	if err2 != nil {
-		return nil, err
+		return nil, err2
 	}
 	// Replace each substitution with a numerator and denominator
 	// fraction.

@@ -5,4 +5,5 @@
  x := a+b
  y := a+b+c
  z := (-2*a*c-2*b*c-c^2)/(a+4*c^2)
+ 1 rem -b/(a+b)
 exiting

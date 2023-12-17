@@ -90,6 +90,7 @@ file <name>	take commands from a named file
 xxx := <exp>	learn a simple substitution for simplification
 xxx = <exp>	learn a simplified substitution for simplification
 list		list all of the known substitutions
+reduce <exp>    express as simple expression plus a remainder
 exit		exit the program
 help		this message
 <exp> mod <n>   compute modular result for expressions with a denominator of 1`)
@@ -110,7 +111,6 @@ func inline(f *terms.Frac, vars map[string]*terms.Frac) *terms.Frac {
 }
 
 func main() {
-
 	flag.Parse()
 
 	vars := make(map[string]*terms.Frac)
@@ -202,6 +202,22 @@ func main() {
 			reading = bufio.NewScanner(f)
 			fs = append(fs, f)
 			files = append(files, reading)
+			continue
+		} else if toks[0] == "reduce" {
+			es, err := build(toks[1:])
+			if err != nil {
+				fmt.Printf("expression problem: %v\n", err)
+				continue
+			}
+			for _, e := range es {
+				e = inline(e, vars)
+				a, b, err := e.Num.Divide(e.Den)
+				if err != nil {
+					fmt.Printf(" %v\n", e)
+					continue
+				}
+				fmt.Printf(" %v rem %v\n", a, terms.NewFrac(b, e.Den))
+			}
 			continue
 		} else {
 			switch toks[1] {

@@ -4,6 +4,10 @@ go test zappem.net/pub/math/algex/{factor,matrix,rotation,terms}
 
 # Tests for the algex tool.
 go build examples/algex.go
+if [ ${?} -ne 0 ]; then
+    echo "FAILED"
+    exit 1
+fi
 TMPDIR=$(mktemp -d)
 for t in tests/*.ax ; do
     echo "testing: $t"
