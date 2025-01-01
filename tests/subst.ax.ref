@@ -1,0 +1,4 @@
+ a := X-b
+ x := a+b
+ X^4
+exiting

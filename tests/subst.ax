@@ -1,0 +1,5 @@
+x:=a+b
+a:=X-b
+list
+x^4
+exit

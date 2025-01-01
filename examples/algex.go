@@ -96,15 +96,21 @@ help		this message
 <exp> mod <n>   compute modular result for expressions with a denominator of 1`)
 }
 
+// Vars is used to make substitutions.
+type Vars struct {
+	fact  []factor.Value
+	subst *terms.Frac
+}
+
 // inline substitutes values a number of times to simplify an
 // expression with the known replacement values.
 //
 // TODO pick a better strategy for simplification. Perhaps order
 // substitutions by smallness of substitution sets?
-func inline(f *terms.Frac, vars map[string]*terms.Frac) *terms.Frac {
-	for i := 0; i < 4; i++ {
-		for s, v := range vars {
-			f = f.Substitute([]factor.Value{factor.S(s)}, v)
+func inline(f *terms.Frac, vars map[string]*Vars) *terms.Frac {
+	for i := 0; i < 8; i++ {
+		for _, v := range vars {
+			f = f.Substitute(v.fact, v.subst)
 		}
 	}
 	return f
@@ -113,7 +119,7 @@ func inline(f *terms.Frac, vars map[string]*terms.Frac) *terms.Frac {
 func main() {
 	flag.Parse()
 
-	vars := make(map[string]*terms.Frac)
+	vars := make(map[string]*Vars)
 
 	t := lined.NewReader()
 	var f *os.File
@@ -180,7 +186,7 @@ func main() {
 				}
 				sort.Strings(ts)
 				for _, k := range ts {
-					fmt.Printf(" %s := %v\n", k, vars[k])
+					fmt.Printf(" %s := %v\n", k, vars[k].subst)
 				}
 				continue
 			case "help":
@@ -192,6 +198,7 @@ func main() {
 					continue
 				}
 			}
+			// fall through - this is an expression.
 		} else if toks[0] == "file" {
 			path := strings.TrimSpace(line[5 : len(line)-1])
 			f, err = os.Open(path)
@@ -220,53 +227,78 @@ func main() {
 			}
 			continue
 		} else {
-			switch toks[1] {
-			case ":=", "=":
-				if !symbol.MatchString(toks[0]) {
-					fmt.Printf("invalid assignment to %q\n", toks[0])
+			var op string
+			var before, after []string
+			// scan for ":=", "=" or "mod"
+			for i := 1; op == "" && i < len(toks); i++ {
+				switch toks[i] {
+				case ":=", "=", "mod":
+					op = toks[i]
+					before = toks[:i]
+					after = toks[i+1:]
+				}
+			}
+			if op != "" {
+				lhs, err := build(before)
+				if err != nil || len(lhs) != 1 {
+					{
+						fmt.Printf("invalid pre-op (%q) expression, %q: %v\n", op, before, err)
+						continue
+					}
+				}
+				if len(after) == 0 {
+					te, err := lhs[0].Num.Leading()
+					if err != nil {
+						fmt.Printf("invalid expression to drop from list: %q\n", lhs)
+						continue
+					}
+					delete(vars, factor.Prod(te.Fact...))
 					continue
 				}
-				if len(toks) < 3 {
-					delete(vars, toks[0])
+				rhs, err := build(after)
+				if err != nil || len(rhs) != 1 {
+					fmt.Printf("invalid post-op (%q) expression: %q\n", op, after)
 					continue
 				}
-				es, err := build(toks[2:])
-				if err != nil {
-					fmt.Printf("assignment failed: %v\n", err)
+				left := lhs[0].Num
+				right := terms.NewFrac(rhs[0].Num.Mul(lhs[0].Den), rhs[0].Den)
+				switch op {
+				case ":=", "=":
+					te, err := left.Leading()
+					if err != nil {
+						fmt.Printf("pre-op (%q) expression must have one non-numeric term: %q does not\n", op, left)
+						continue
+					}
+					fe := te.Exp()
+					ce := terms.Rat(te.Coeff)
+					nr := terms.NewFrac(right.Num, fe.Sub(left), ce.Mul(right.Den))
+					if op == "=" {
+						nr = inline(nr, vars)
+					} else {
+						nr.Reduce()
+					}
+					vars[factor.Prod(te.Fact...)] = &Vars{
+						fact:  te.Fact,
+						subst: nr,
+					}
+					continue
+				case "mod":
+					if lhs[0].Den.String() != "1" {
+						fmt.Printf("expression, %v, has denominator - no mod value\n", lhs)
+						continue
+					}
+					if rhs[0].Den.String() != "1" {
+						fmt.Printf("modulus, %v, has denominator - no mod value\n", rhs)
+						continue
+					}
+					m, ok := rhs[0].Num.AsNumber()
+					if !ok {
+						fmt.Printf("modulus, %v, is not a number", rhs)
+					}
+					f := inline(lhs[0], vars)
+					fmt.Printf(" %v\n", f.Num.Mod(factor.R(m)))
 					continue
 				}
-				if len(es) != 1 {
-					fmt.Printf("unable to assign multiple expressions to %q\n", toks[0])
-					continue
-				}
-				if toks[1] == "=" {
-					es[0] = inline(es[0], vars)
-				}
-				vars[toks[0]] = es[0]
-				continue
-			case "mod":
-				s := toks[0]
-				f, ok := vars[s]
-				if !ok {
-					fmt.Printf("invalid modular to %q\n", s)
-					continue
-				}
-				if len(toks) != 3 {
-					fmt.Println("usage: <exp> mod <number>")
-					continue
-				}
-				m, k, err := factor.Parse(toks[2])
-				if err != nil || k != len(toks[2]) {
-					fmt.Printf("invalid modular denominator: %q\n", toks[2:])
-					continue
-				}
-				f = inline(f, vars)
-				if f.Den.String() != "1" {
-					fmt.Printf("expression, %v, has denominator - no mod value\n", f)
-					continue
-				}
-				fmt.Printf(" %v\n", f.Num.Mod(m[0]))
-				continue
 			}
 		}
 

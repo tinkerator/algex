@@ -71,6 +71,11 @@ func Int(n *big.Int) *Exp {
 	return NewExp([]factor.Value{factor.I(n)})
 }
 
+// Rat generates an expression of a rational number.
+func Rat(r *big.Rat) *Exp {
+	return NewExp([]factor.Value{factor.R(r)})
+}
+
 // insert merges a coefficient, a product of factors to an expression
 // indexed by s.
 func (e *Exp) insert(n *big.Rat, fs []factor.Value, s string) {
@@ -89,6 +94,15 @@ func (e *Exp) insert(n *big.Rat, fs []factor.Value, s string) {
 		return
 	}
 	e.terms[s] = old
+}
+
+// Exp converts a Term into a stand alone expression.
+func (term Term) Exp() *Exp {
+	e := &Exp{
+		terms: make(map[string]Term),
+	}
+	e.insert(term.Coeff, term.Fact, factor.Prod(term.Fact...))
+	return e
 }
 
 // Sum adds together expressions. With only one argument, Add is a
@@ -354,7 +368,11 @@ func (r *Frac) String() string {
 	return fmt.Sprintf("(%s)/%s", ns, ds)
 }
 
-// NewFrac initializes a ratio value to "0/1".
+// NewFrac with no args initializes a ratio value to "0/1". With one
+// arg, it returns a fraction with that arg as the numerator and 1 as
+// the denominator. For all other numbers of args, the last arg is
+// considered the denominator expression, and all of the preceding
+// args are summed to construct the numerator.
 func NewFrac(e ...*Exp) *Frac {
 	switch len(e) {
 	case 0:
@@ -473,13 +491,12 @@ func CommonN(exs ...*Exp) *big.Rat {
 	return big.NewRat(1, 1).SetFrac(n, d)
 }
 
-// Divide performs long division of one expression with another. It
-// returns the quotient: div, and any remainder: rem.
-func (ex *Exp) Divide(a *Exp) (div, rem *Exp, err error) {
+// Leading returns the highest power term from an expression.
+func (ex *Exp) Leading() (term Term, err error) {
 	// Find the greatest power symbol term of `a`.
-	var leading string
 	n := 0
-	for s, t := range a.terms {
+	var leading string
+	for s, t := range ex.terms {
 		m := factor.Order(t.Fact)
 		if n > m {
 			continue
@@ -488,14 +505,25 @@ func (ex *Exp) Divide(a *Exp) (div, rem *Exp, err error) {
 			continue
 		}
 		leading = s
+		term = t
 		n = m
 	}
 	if n == 0 {
-		return nil, nil, factor.ErrDone
+		err = factor.ErrDone
+		return
+	}
+	return
+}
+
+// Divide performs long division of one expression with another. It
+// returns the quotient: div, and any remainder: rem.
+func (ex *Exp) Divide(a *Exp) (div, rem *Exp, err error) {
+	lead, err := a.Leading()
+	if err != nil {
+		return nil, nil, err
 	}
 	// Express this leading term as _factor-"the rest" of `a`.
 	repl := []factor.Value{factor.S("_factor")}
-	lead := a.terms[leading]
 	inv := big.NewRat(1, 1).Inv(lead.Coeff)
 	leader := NewExp(append([]factor.Value{factor.R(lead.Coeff)}, lead.Fact...))
 	rest := NewExp(repl).Add(leader).Sub(a).Mul(NewExp([]factor.Value{factor.R(inv)}))
@@ -534,12 +562,17 @@ func (f *Frac) Reduce() {
 	}
 
 	// Best effort at simplifying the polynomials.
+
 	a, b, err := f.Num.Divide(f.Den)
-	if err != nil || b != nil {
-		return
+	if err == nil && b == nil {
+		f.Num = a
+		f.Den = NewExp([]factor.Value{factor.D(1, 1)})
 	}
-	f.Num = a
-	f.Den = NewExp([]factor.Value{factor.D(1, 1)})
+	a, b, err = f.Den.Divide(f.Num)
+	if err == nil && b == nil {
+		f.Num = NewExp([]factor.Value{factor.D(1, 1)})
+		f.Den = a
+	}
 }
 
 // parseFracInt implements Frac text parsing on a string that contains

@@ -39,13 +39,17 @@ $ go run examples/ik.go
 
 ## Features planned
 
-- Rational polynomial factorization isn't yet implemented. Currently, we
-only cancel common simple numerical factors of the denominator and the
-numerator, and whole pieces of the denominator. Example:
+- Rational polynomial factorization isn't yet implemented. Currently,
+  we only cancel common simple numerical factors of the denominator
+  and the numerator, and whole copies the numerator and
+  denominator. Example:
+
 ```
 $ ./algex
 > (x+y)*(x-y)/(x+y)
  x-y
+> (x+y)/(x^2-y^2)
+ 1/(x-y)
 > 2*(x+y)*(x-y)/(x^2-y^2)
  2
 > (x+y)*(x-y)/(x+y)^2
