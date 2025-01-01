@@ -5,7 +5,7 @@
 Algex is a collection of interdependent Go packages for performing
 basic algebra. The core functionality was developed to solve the
 inverse kinematics of a [6-axis
-robot](https://github.com/tinkerator/saxis). However, structuring it
+robot](https://zappem.net/pub/projects/saxis). However, structuring it
 as a set of stand alone packages provided a motivation for expanding
 its capabilities.
 
@@ -31,7 +31,7 @@ exiting
 
 The other included example is `examples/ik.go` which is the mentioned
 inverse kinematics algebra for the [saxis
-robot](https://github.com/tinkerator/saxis):
+robot](https://zappem.net/pub/projects/saxis):
 ```
 $ go run examples/ik.go
 ... a lot of formulas (investigated and solved by hand) ...
