@@ -208,17 +208,19 @@ func (e *Exp) Mul(es ...*Exp) *Exp {
 	return Mul(append([]*Exp{e}, es...)...)
 }
 
-// Substitute replaces each occurrence of b in an expression with the
-// expression c.
-func (e *Exp) Substitute(b []factor.Value, c *Exp) *Exp {
+// Substituted replaces each occurrence of b in an expression with the
+// expression c. If the returned boolean is true, then something was
+// substituted.
+func (e *Exp) Substituted(b []factor.Value, c *Exp) (*Exp, bool) {
 	if len(b) == 0 {
-		return e
+		return e, false
 	}
 	s := [][]factor.Value{}
 	for _, t := range c.terms {
 		s = append(s, append([]factor.Value{factor.R(t.Coeff)}, t.Fact...))
 	}
 	g := e
+	acted := false
 	for {
 		again := false
 		f := &Exp{
@@ -248,8 +250,17 @@ func (e *Exp) Substitute(b []factor.Value, c *Exp) *Exp {
 		if !again {
 			break
 		}
+		acted = true
 	}
-	return g
+	return g, acted
+}
+
+// Substitute unconditionally attempts to substitute occurences of b
+// in e with expression c. Consider using e.Substituted() to understand
+// if any change was made.
+func (e *Exp) Substitute(b []factor.Value, c *Exp) *Exp {
+	e2, _ := e.Substituted(b, c)
+	return e2
 }
 
 // Contains investigates an expression for the presence of a term, b.
@@ -414,26 +425,45 @@ func Ratio(e *Exp) (f *Frac) {
 	return
 }
 
-// Substitute substitutes replaces each occurrence of b in a Frac
-// numerator and denominator with the expression c.
-func (f *Frac) Substitute(b []factor.Value, c *Frac) *Frac {
+// Substituted replaces each occurrence of b in a Frac numerator and
+// denominator with the expression c. The boolean return value is true
+// when a substitution was performed.
+func (f *Frac) Substituted(b []factor.Value, c *Frac) (*Frac, bool) {
 	inv := factor.Inv(b)
 	n, d := "_n", "_d"
-	num := f.Num.Substitute(b, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)})).Substitute(inv, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
-	den := f.Den.Substitute(b, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)})).Substitute(inv, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
+
+	num0, a0 := f.Num.Substituted(b, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)}))
+	num, a1 := num0.Substituted(inv, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
+	den0, a2 := f.Den.Substituted(b, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)}))
+	den, a3 := den0.Substituted(inv, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
+
+	if !(a0 || a1 || a2 || a3) {
+		return f, false // b not found in f.
+	}
+
 	r1 := Ratio(num)
 	r2 := Ratio(den)
 	r := &Frac{
 		Num: r1.Num.Mul(r2.Den),
 		Den: r1.Den.Mul(r2.Num),
 	}
+
 	r.Reduce()
 	r.Num = r.Num.Substitute([]factor.Value{factor.S(n)}, c.Num)
 	r.Num = r.Num.Substitute([]factor.Value{factor.S(d)}, c.Den)
 	r.Den = r.Den.Substitute([]factor.Value{factor.S(n)}, c.Num)
 	r.Den = r.Den.Substitute([]factor.Value{factor.S(d)}, c.Den)
 	r.Reduce()
-	return r
+
+	return r, true
+}
+
+// Substitute replaces each occurrence of b in a Frac numerator and
+// denominator with the expression c. Consider using f.Substituted()
+// since this indicates if a substitution occurred.
+func (f *Frac) Substitute(b []factor.Value, c *Frac) *Frac {
+	f2, _ := f.Substituted(b, c)
+	return f2
 }
 
 var ErrBadFirstChar = errors.New("invalid first character, \"_\"")

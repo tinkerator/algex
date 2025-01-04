@@ -108,9 +108,28 @@ type Vars struct {
 // TODO pick a better strategy for simplification. Perhaps order
 // substitutions by smallness of substitution sets?
 func inline(f *terms.Frac, vars map[string]*Vars) *terms.Frac {
+	var vs []string
+	for v := range vars {
+		vs = append(vs, v)
+	}
+	sort.Slice(vs, func(a, b int) bool {
+		as, bs := vars[vs[a]], vars[vs[b]]
+		am, bm := factor.Order(as.fact), factor.Order(bs.fact)
+		if am == bm {
+			return vs[a] < vs[b]
+		}
+		return am > bm
+	})
 	for i := 0; i < 8; i++ {
-		for _, v := range vars {
-			f = f.Substitute(v.fact, v.subst)
+		changed := false
+		for _, v := range vs {
+			vv := vars[v]
+			var modified bool
+			f, modified = f.Substituted(vv.fact, vv.subst)
+			changed = changed || modified
+		}
+		if !changed {
+			break
 		}
 	}
 	return f
