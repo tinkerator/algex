@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -305,6 +306,16 @@ func skipSpace(s string) int {
 		}
 	}
 	return 0
+}
+
+var isValidLabel = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*$`).MatchString
+
+// ValidSymbol confirms that a symbol can be considered externally
+// meaningful. Various packages may use other forms for book keeping
+// purposes (factoring etc), but for "external" purposes this is the
+// only valid form.
+func ValidSymbol(token string) bool {
+	return isValidLabel(token)
 }
 
 // subParse parses the next token of interest or returns ErrDone.

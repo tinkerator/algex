@@ -355,9 +355,44 @@ done:
 	}
 }
 
+type FnDef struct {
+	Name string
+	Args []*Frac
+}
+
 // Frac is used to hold a numerator and a denominator expression.
 type Frac struct {
 	Num, Den *Exp
+	// In some situations our fractional expressions is a function
+	// of a list of arguments. To keep the complexity of things
+	// under control, in the numerator and denominator these
+	// functions are represented by tokens (_FN%dFN_). The
+	// following is a token lookup map. Warning: as fractions are
+	// simplified, this map will change.
+	Fns map[string]FnDef
+}
+
+func (fn FnDef) String() string {
+	var args []string
+	for _, a := range fn.Args {
+		args = append(args, a.String())
+	}
+	return fmt.Sprintf("%s(%s)", fn.Name, strings.Join(args, ","))
+}
+
+// funcStrings performs a string replacement of all of the string
+// tokens present in a text expression.
+func (r *Frac) funcStrings(text string) string {
+	if r.Fns == nil {
+		return text
+	}
+	for tok, val := range r.Fns {
+		if strings.Index(text, tok) == -1 {
+			continue
+		}
+		text = strings.ReplaceAll(text, tok, val.String())
+	}
+	return text
 }
 
 // String displays a text representation of a ratio.
@@ -365,8 +400,8 @@ func (r *Frac) String() string {
 	if r == nil || r.Num == nil {
 		return "0"
 	}
-	ns := r.Num.String()
-	ds := r.Den.String()
+	ns := r.funcStrings(r.Num.String())
+	ds := r.funcStrings(r.Den.String())
 	if ds == "1" {
 		return ns
 	}
@@ -468,12 +503,13 @@ func (f *Frac) Substitute(b []factor.Value, c *Frac) *Frac {
 
 var ErrBadFirstChar = errors.New("invalid first character, \"_\"")
 
-// ParseFrac converts a string into a parsed Frac expression pair.
-func ParseFrac(text string) (*Frac, error) {
+// ParseFrac converts a string into a parsed Frac expression pair, or
+// a list of such expressions. TODO eventually improve this check.
+func ParseFrac(text string) (*Frac, []*Frac, error) {
 	// This function uses "_" prefixed values for temporaries,
 	// so ban them from being in the supplied string.
 	if strings.HasPrefix(text, "_") {
-		return nil, ErrBadFirstChar
+		return nil, nil, ErrBadFirstChar
 	}
 	return parseFracInt(text)
 }
@@ -569,9 +605,57 @@ func (ex *Exp) Divide(a *Exp) (div, rem *Exp, err error) {
 	return div, y, nil
 }
 
+// trimFns collapses duplicate function references down to a canonical
+// reference. It also eliminates any unused references.
+func (f *Frac) trimFns() {
+	if f.Fns == nil {
+		return
+	}
+
+	fns := make(map[string]FnDef)
+	dedupe := make(map[string]string)
+	del := make(map[string]string)
+	for tok, fr := range f.Fns {
+		sym := []factor.Value{factor.S(tok)}
+		if !(f.Num.Contains(sym) || f.Den.Contains(sym)) {
+			// just forget this token
+			continue
+		}
+		s := fr.String()
+		if x, ok := dedupe[s]; ok {
+			del[tok] = x
+		} else {
+			r := fmt.Sprintf("_FN%dFN_", len(fns))
+			dedupe[s] = r
+			del[tok] = r
+			fns[r] = fr
+		}
+	}
+
+	if len(fns) == 0 {
+		f.Fns = nil
+		return
+	}
+	f.Fns = fns
+
+	for tok, repl := range del {
+		if tok == repl {
+			// No substitution needed
+			continue
+		}
+		was := []factor.Value{factor.S(tok)}
+		is := NewExp([]factor.Value{factor.S(repl)})
+
+		f.Num = f.Num.Substitute(was, is)
+		f.Den = f.Den.Substitute(was, is)
+	}
+}
+
 // Reduce removes factors common to the numerator and denominator.
 // TODO explore more sophisticated factorization.
 func (f *Frac) Reduce() {
+	f.trimFns()
+
 	// Reduce the numerical coefficients.
 	n := CommonN(f.Num)
 	invN := big.NewRat(1, 1).Inv(n)
@@ -592,7 +676,6 @@ func (f *Frac) Reduce() {
 	}
 
 	// Best effort at simplifying the polynomials.
-
 	a, b, err := f.Num.Divide(f.Den)
 	if err == nil && b == nil {
 		f.Num = a
@@ -603,11 +686,14 @@ func (f *Frac) Reduce() {
 		f.Num = NewExp([]factor.Value{factor.D(1, 1)})
 		f.Den = a
 	}
+
+	// Drop any functions that have been canceled.
+	f.trimFns()
 }
 
 // parseFracInt implements Frac text parsing on a string that contains
 // no externally defined "_" symbols.
-func parseFracInt(text string) (r *Frac, err error) {
+func parseFracInt(text string) (r *Frac, args []*Frac, err error) {
 	depth := 0
 	base := -1
 	// This loop breaks the text string into X ( Y ) Z pieces,
@@ -615,6 +701,7 @@ func parseFracInt(text string) (r *Frac, err error) {
 	// for X. X does not contain any parentheses. Y and Z may. Y
 	// and Z are parsed by recursion.
 	subs := make(map[string]*Frac)
+	fns := make(map[string]FnDef)
 	for i := 0; i < len(text); i++ {
 		c := text[i]
 		if c == '(' {
@@ -625,39 +712,87 @@ func parseFracInt(text string) (r *Frac, err error) {
 		} else if c == ')' {
 			depth--
 			if depth == 0 {
-				sub := fmt.Sprintf("_XXX%d", len(subs))
-				r2, err2 := ParseFrac(text[base+1 : i])
+				r2, a2, err2 := ParseFrac(text[base+1 : i])
 				if err2 != nil {
 					err = err2
 					return
 				}
-				subs[sub] = r2
-				// Replace with sub and explore rest.
-				text = fmt.Sprintf("%s %s %s", text[:base], sub, text[i+1:])
-				i = base + len(sub) - 1
+				if a2 != nil {
+					fields := strings.Fields(text[:base])
+					if len(fields) < 1 {
+						err = fmt.Errorf("no name for function with args: %q", a2)
+						return
+					}
+					name := fields[len(fields)-1]
+					if !factor.ValidSymbol(name) {
+						err = fmt.Errorf("invalid function name %q", name)
+						return
+					}
+					fn := fmt.Sprintf("_FN%dFN_", len(fns))
+					fns[fn] = FnDef{
+						Name: name,
+						Args: a2,
+					}
+					left := strings.Join(fields[:len(fields)-1], " ")
+					text = fmt.Sprintf("%s %s %s", left, fn, text[i+1:])
+					i = len(left) + 1 + len(fn)
+				} else {
+					sub := fmt.Sprintf("_XXX%d", len(subs))
+					subs[sub] = r2
+					// Replace with sub and explore rest.
+					text = fmt.Sprintf("%s %s %s", text[:base], sub, text[i+1:])
+					i = base + len(sub) - 1
+				}
 				base = -1
 				continue
 			}
 		}
-		if depth == -1 {
-			return nil, fmt.Errorf("parsing error too many ')' in %q", text)
+		if depth <= -1 {
+			err = fmt.Errorf("parsing error too many ')' in %q", text)
+			return
 		}
 	}
 	if depth != 0 {
-		return nil, fmt.Errorf("parsing error too many '(' in %q", text)
+		err = fmt.Errorf("parsing error too many '(' in %q", text)
+		return
+	}
+
+	if strings.Contains(text, ",") {
+		for i, el := range strings.Split(text, ",") {
+			ra, as, err2 := ParseFrac(el)
+			if err2 != nil {
+				err = fmt.Errorf("list element[%d] = %q: %v", i, el, err2)
+				args = nil
+				return
+			}
+			if as != nil {
+				err = fmt.Errorf("unexpected sub-comma list element[%d]: %q -> %q", i, el)
+				args = nil
+				return
+			}
+			args = append(args, ra)
+		}
+		return
 	}
 
 	e, err2 := ParseExp(text)
 	if err2 != nil {
-		return nil, err2
+		err = err2
+		return
 	}
+
 	// Replace each substitution with a numerator and denominator
 	// fraction.
 	for sub := range subs {
 		n, d := sub+"n", sub+"d"
 		e = e.Substitute([]factor.Value{factor.S(sub)}, NewExp([]factor.Value{factor.S(n), factor.Sp(d, -1)})).Substitute([]factor.Value{factor.Sp(sub, -1)}, NewExp([]factor.Value{factor.Sp(n, -1), factor.S(d)}))
 	}
+
 	r = Ratio(e)
+	if len(fns) != 0 {
+		r.Fns = fns
+	}
+
 	// Given we have completely separated the positive and
 	// negative powers of the ratio components we can now expand
 	// the numerator and denominator with simple substitution.
@@ -668,6 +803,7 @@ func parseFracInt(text string) (r *Frac, err error) {
 		r.Den = r.Den.Substitute([]factor.Value{factor.S(n)}, val.Num)
 		r.Den = r.Den.Substitute([]factor.Value{factor.S(d)}, val.Den)
 	}
+
 	r.Reduce()
 	return
 }

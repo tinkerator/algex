@@ -46,43 +46,30 @@ func split(line string) (toks []string) {
 }
 
 // exp returns a single expression, fully expanded.
-func exp(toks []string) (*terms.Frac, error) {
+func exp(toks []string) (*terms.Frac, []*terms.Frac, error) {
 	return terms.ParseFrac(strings.Join(toks, " "))
 }
 
-// build returns a list of comma separated expressions. Each expression
-// is completely expanded.
+// build returns a fractional expression which is completely expanded.
+// Anticipating groups of expressions, the build return an array of
+// such fractions. However, at present, it can't recognize such an
+// array.
 func build(toks []string) (es []*terms.Frac, err error) {
-	j := 0
-outer:
-	for ; j < len(toks); j++ {
-		for i, t := range toks[j:] {
-			if t == "," {
-				e, err2 := exp(toks[j : j+i])
-				if err2 != nil {
-					es = nil
-					err = err2
-					return
-				}
-				es = append(es, e)
-				j += i
-				continue outer
-			}
-		}
-		e, err2 := exp(toks[j:])
-		if err2 != nil {
-			es = nil
-			err = err2
-			return
-		}
-		es = append(es, e)
-		break
+	e, as, err2 := exp(toks)
+	if err2 != nil {
+		err = err2
+		return
 	}
+	if as != nil {
+		es = as
+		return
+	}
+	es = []*terms.Frac{e}
 	return
 }
 
 func helpInfo() {
-	fmt.Println("Algex (c) 2023 tinkerer@zappem.net\n")
+	fmt.Println("Algex (c) 2023,24,25 tinkerer@zappem.net\n")
 	fmt.Println(`Commands:
 
 <exp>		display expression (simplified)
@@ -260,10 +247,8 @@ func main() {
 			if op != "" {
 				lhs, err := build(before)
 				if err != nil || len(lhs) != 1 {
-					{
-						fmt.Printf("invalid pre-op (%q) expression, %q: %v\n", op, before, err)
-						continue
-					}
+					fmt.Printf("invalid pre-op (%q) expression, %q: %v\n", op, before, err)
+					continue
 				}
 				if len(after) == 0 {
 					te, err := lhs[0].Num.Leading()
