@@ -1,0 +1,6 @@
+ -2*x*y
+ 4*a*b*c*d-2*a*b*c^2-2*a*b*d^2-2*a^2*c*d+a^2*c^2+a^2*d^2-2*b^2*c*d+b^2*c^2+b^2*d^2
+ 1-2*b+b^2
+ fn(a,b) := -2*a*b+a^2+b^2
+ x := func(a,b)*xx(a)
+exiting

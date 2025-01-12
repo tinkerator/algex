@@ -1,6 +1,7 @@
 package terms
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -203,16 +204,45 @@ func TestFrac(t *testing.T) {
 		{a: "alpha *beta", b: "-beta^2 /-(alpha/beta)^-1"},
 	}
 	for i, e := range ex {
-		a, err := ParseFrac(e.a)
+		a, as, err := ParseFrac(e.a)
 		if err != nil {
 			t.Errorf("failed for %d:a=%q, a=(%v): %v", i, e.a, a, err)
 		}
-		b, err := ParseFrac(e.b)
+		if as != nil {
+			t.Errorf("array returned, but not expecting one: %v", as)
+		}
+		b, bs, err := ParseFrac(e.b)
 		if err != nil {
 			t.Errorf("failed for %d:b=%q, b=(%v): %v", i, e.b, b, err)
 		}
-		if as, bs := a.String(), b.String(); as != bs {
-			t.Errorf("failed to equate %d:a=%q,b=%q -> %q != %q", i, e.a, e.b, a, b)
+		if bs != nil {
+			t.Errorf("array returned, but not expecting one: %v", bs)
+		}
+		if ast, bst := a.String(), b.String(); ast != bst {
+			t.Errorf("failed to equate %d:a=%q,b=%q -> %q != %q", i, e.a, e.b, ast, bst)
+		}
+	}
+	ex2 := []struct{ a, b string }{
+		{a: "x , y", b: " x,y "},
+		{a: "x+y,b", b: "y +c+ x -c ,b"},
+	}
+	for i, e := range ex2 {
+		a, as, err := ParseFrac(e.a)
+		if err != nil {
+			t.Errorf("failed for %d:a=%q, a=(%v): %v", i, e.a, a, err)
+		}
+		if a != nil {
+			t.Errorf("expect array only, but got one: %v", a)
+		}
+		b, bs, err := ParseFrac(e.b)
+		if err != nil {
+			t.Errorf("failed for %d:b=%q, b=(%v): %v", i, e.b, b, err)
+		}
+		if b != nil {
+			t.Errorf("expect array only, but got one: %v", b)
+		}
+		if ast, bst := fmt.Sprint(as), fmt.Sprint(bs); ast != bst {
+			t.Errorf("failed to equate %d:a=%q,b=%q -> %q != %q", i, e.a, e.b, ast, bst)
 		}
 	}
 }

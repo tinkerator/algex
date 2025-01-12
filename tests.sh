@@ -1,6 +1,10 @@
 #!/bin/bash
 #
 go test zappem.net/pub/math/algex/{factor,matrix,rotation,terms}
+if [ ${?} -ne 0 ]; then
+    echo "FAILED"
+    exit 1
+fi
 
 # Tests for the algex tool.
 go build examples/algex.go

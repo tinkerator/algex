@@ -85,7 +85,11 @@ help		this message
 
 // Vars is used to make substitutions.
 type Vars struct {
-	fact  []factor.Value
+	// sorting order name
+	fact []factor.Value
+	// non-nil implies this entry is actually a function
+	fn *terms.FnDef
+	// what the fact or fn should be replaced with
 	subst *terms.Frac
 }
 
@@ -101,6 +105,15 @@ func inline(f *terms.Frac, vars map[string]*Vars) *terms.Frac {
 	}
 	sort.Slice(vs, func(a, b int) bool {
 		as, bs := vars[vs[a]], vars[vs[b]]
+		if as.fn != nil || bs.fn != nil {
+			if as.fn == nil {
+				return false
+			}
+			if bs.fn == nil {
+				return true
+			}
+			return as.fn.Name < bs.fn.Name
+		}
 		am, bm := factor.Order(as.fact), factor.Order(bs.fact)
 		if am == bm {
 			return vs[a] < vs[b]
@@ -112,7 +125,11 @@ func inline(f *terms.Frac, vars map[string]*Vars) *terms.Frac {
 		for _, v := range vs {
 			vv := vars[v]
 			var modified bool
-			f, modified = f.Substituted(vv.fact, vv.subst)
+			if vv.fn != nil {
+				f, modified = f.SubstitutedFn(*vv.fn, vv.subst)
+			} else {
+				f, modified = f.Substituted(vv.fact, vv.subst)
+			}
 			changed = changed || modified
 		}
 		if !changed {
@@ -251,12 +268,17 @@ func main() {
 					continue
 				}
 				if len(after) == 0 {
-					te, err := lhs[0].Num.Leading()
-					if err != nil {
-						fmt.Printf("invalid expression to drop from list: %q\n", lhs)
+					if op != ":=" && op != "=" {
+						fmt.Printf("require two expressions for op=%q\n", op)
 						continue
 					}
-					delete(vars, factor.Prod(te.Fact...))
+					sub, ok := lhs[0].AsSubValue()
+					if !ok {
+						fmt.Printf("left-hand-side %q is not substitutable\n", lhs[0])
+						continue
+					}
+					sym := factor.Prod(sub...)
+					delete(vars, sym)
 					continue
 				}
 				rhs, err := build(after)
@@ -264,27 +286,40 @@ func main() {
 					fmt.Printf("invalid post-op (%q) expression: %q\n", op, after)
 					continue
 				}
-				left := lhs[0].Num
-				right := terms.NewFrac(rhs[0].Num.Mul(lhs[0].Den), rhs[0].Den)
 				switch op {
 				case ":=", "=":
-					te, err := left.Leading()
+					left, right, err := terms.Rearrange(lhs[0], rhs[0])
 					if err != nil {
-						fmt.Printf("pre-op (%q) expression must have one non-numeric term: %q does not\n", op, left)
+						fmt.Printf("assignment problem: %v\n", err)
 						continue
 					}
-					fe := te.Exp()
-					ce := terms.Rat(te.Coeff)
-					nr := terms.NewFrac(right.Num, fe.Sub(left), ce.Mul(right.Den))
+					sub, ok := left.AsSubValue()
+					if !ok {
+						fmt.Printf("left-hand-side %q is not substitutable\n", left)
+						continue
+					}
 					if op == "=" {
-						nr = inline(nr, vars)
+						right = inline(right, vars)
 					} else {
-						nr.Reduce()
+						right.Reduce()
 					}
-					vars[factor.Prod(te.Fact...)] = &Vars{
-						fact:  te.Fact,
-						subst: nr,
+					v := &Vars{
+						fact:  sub,
+						subst: right,
 					}
+					if left.Fns != nil {
+						var sym string
+						for k := range left.Fns {
+							if sym != "" {
+								fmt.Print("multiple function references in assignment: %v -> %v", left, right)
+								continue
+							}
+							sym = k
+						}
+						fn := left.Fns[sym]
+						v.fn = &fn
+					}
+					vars[left.String()] = v
 					continue
 				case "mod":
 					if lhs[0].Den.String() != "1" {

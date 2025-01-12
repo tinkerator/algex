@@ -23,6 +23,15 @@ $ ./algex
 > y:=a-b
 > x*y
  a^2-b^2
+> fn(x,y):=x-y
+> list
+ fn(x,y) := x-y
+ x := a+b
+ y := a-b
+> fn(a,b)
+ a-b
+> fn(y,x)
+ -2*b
 > exit
 exiting
 ```
@@ -38,14 +47,6 @@ $ go run examples/ik.go
 ```
 
 ## Features planned
-
-- Function support for `algex.go`. Something like this:
-
-```
-> f(a,b) := a + 4*b
-> f(x,y) + x
- 2*x+4*y
-```
 
 - Rational polynomial factorization isn't yet implemented. Currently,
   we only cancel common simple numerical factors of the denominator
